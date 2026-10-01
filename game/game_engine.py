@@ -48,9 +48,10 @@ class GameEngine:
         return walls
 
     def handle_event(self, event):
-        # This game is driven entirely by the continuous mouse
-        # position, handled in handle_input each frame.
-        pass
+        if self.game_over and event.type == pygame.KEYDOWN:
+            return True
+
+        return False
 
     def handle_input(self):
         if self.game_over:
@@ -194,10 +195,45 @@ class GameEngine:
         timer_text = self.font.render(f"Time: {seconds_left}s", True, WHITE)
         screen.blit(timer_text, (10, 10))
 
-        if self.game_over and not getattr(self, "_game_over_logged", False):
-            # NOTE: no proper end screen yet - see Task 2 in the README.
-            if self.result == "solved":
-                print(f"Solved! Finished in {self.finish_time_ms / 1000:.1f}s")
-            else:
-                print("Time's up! Maze not solved.")
-            self._game_over_logged = True
+        if self.game_over:
+    # Dark overlay
+            overlay = pygame.Surface((self.width, self.height))
+            overlay.set_alpha(210)
+        overlay.fill((0, 0, 0))
+        screen.blit(overlay, (0, 0))
+
+    if self.result == "solved":
+        title_text = "MAZE SOLVED!"
+        time_text = f"Finish Time: {self.finish_time_ms / 1000:.1f}s"
+    else:
+        title_text = "TIME'S UP!"
+        time_text = "The maze was not solved."
+
+    title_surface = self.font.render(title_text, True, WHITE)
+    time_surface = self.font.render(time_text, True, WHITE)
+    instruction_surface = self.font.render(
+        "Press any key to continue",
+        True,
+        WHITE
+    )
+
+    screen.blit(
+        title_surface,
+        title_surface.get_rect(
+            center=(self.width // 2, self.height // 2 - 60)
+        )
+    )
+
+    screen.blit(
+        time_surface,
+        time_surface.get_rect(
+            center=(self.width // 2, self.height // 2)
+        )
+    )
+
+    screen.blit(
+        instruction_surface,
+        instruction_surface.get_rect(
+            center=(self.width // 2, self.height // 2 + 60)
+        )
+    )
