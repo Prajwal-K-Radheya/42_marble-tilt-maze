@@ -2,6 +2,7 @@ import pygame
 from .marble import Marble
 from .wall import Wall
 
+
 # Game Engine
 
 WHITE = (255, 255, 255)
@@ -11,32 +12,50 @@ GOAL_COLOR = (60, 200, 120)
 
 
 class GameEngine:
-    def __init__(self, width, height):
+
+    def __init__(self, width, height, difficulty="medium"):
         self.width = width
         self.height = height
 
         self.marble = Marble(50, 50)
-        self.tilt_strength = 0.6
-        self.friction = 0.02
+
         self.max_speed = 9
+        self.difficulty = difficulty
+
+        # Difficulty settings
+        if difficulty == "easy":
+            self.tilt_strength = 0.4
+            self.friction = 0.04
+            self.time_limit_ms = 60000
+
+        elif difficulty == "hard":
+            self.tilt_strength = 0.9
+            self.friction = 0.01
+            self.time_limit_ms = 30000
+
+        else:
+            # Medium
+            self.tilt_strength = 0.6
+            self.friction = 0.02
+            self.time_limit_ms = 45000
 
         self.walls = self._build_maze()
+
         self.goal_x = width - 60
         self.goal_y = height - 60
         self.goal_radius = 22
 
-        self.time_limit_ms = 45000
         self.start_ticks = pygame.time.get_ticks()
 
         self.font = pygame.font.SysFont("Arial", 26)
 
         self.game_over = False
-        self.result = None  # "solved" or "timeout"
+        self.result = None
         self.finish_time_ms = None
 
     def _build_maze(self):
         walls = []
-        t = 16  # wall thickness
+        t = 16
 
         # Outer boundary
         walls.append(Wall(0, 0, self.width, t))
@@ -52,11 +71,11 @@ class GameEngine:
         return walls
 
     def handle_event(self, event):
-        # If the game is over, pressing any key exits the game.
+        # Return the key pressed after game over
         if self.game_over and event.type == pygame.KEYDOWN:
-            return True
+            return event.key
 
-        return False
+        return None
 
     def handle_input(self):
         if self.game_over:
@@ -91,8 +110,11 @@ class GameEngine:
         self.marble.vx *= (1 - self.friction)
         self.marble.vy *= (1 - self.friction)
 
-        # Limit maximum speed
-        speed = (self.marble.vx ** 2 + self.marble.vy ** 2) ** 0.5
+        # Limit speed
+        speed = (
+            self.marble.vx ** 2 +
+            self.marble.vy ** 2
+        ) ** 0.5
 
         if speed > self.max_speed:
             scale = self.max_speed / speed
@@ -103,14 +125,16 @@ class GameEngine:
         self.marble.x += self.marble.vx
         self.marble.y += self.marble.vy
 
-        # Resolve collisions
+        # Collision detection
         self._resolve_wall_collisions()
 
         # Check goal
         gx = self.goal_x - self.marble.x
         gy = self.goal_y - self.marble.y
 
-        if (gx ** 2 + gy ** 2) ** 0.5 <= self.goal_radius:
+        distance_to_goal = (gx ** 2 + gy ** 2) ** 0.5
+
+        if distance_to_goal <= self.goal_radius:
             self.game_over = True
             self.result = "solved"
             self.finish_time_ms = elapsed
@@ -122,10 +146,11 @@ class GameEngine:
         """
 
         for wall in self.walls:
+
             wall_rect = wall.rect()
 
-            # Find the closest point on the rectangle
-            # to the center of the marble.
+            # Find closest point on wall rectangle
+            # to the marble center.
             closest_x = max(
                 wall_rect.left,
                 min(self.marble.x, wall_rect.right)
@@ -142,28 +167,29 @@ class GameEngine:
             distance_sq = dx * dx + dy * dy
             radius = self.marble.radius
 
-            # Normal case:
-            # marble is outside the wall but touching it.
+            # Normal case
             if 0 < distance_sq < radius * radius:
+
                 distance = distance_sq ** 0.5
 
                 nx = dx / distance
                 ny = dy / distance
 
-                # Push marble outside the wall.
+                # Push marble out of wall
                 penetration = radius - distance
 
                 self.marble.x += nx * penetration
                 self.marble.y += ny * penetration
 
-                # Calculate velocity toward the wall.
+                # Check velocity direction
                 velocity_into_wall = (
-                    self.marble.vx * nx
-                    + self.marble.vy * ny
+                    self.marble.vx * nx +
+                    self.marble.vy * ny
                 )
 
-                # Bounce only when moving into the wall.
+                # Bounce
                 if velocity_into_wall < 0:
+
                     restitution = 0.3
 
                     self.marble.vx -= (
@@ -179,48 +205,63 @@ class GameEngine:
                     )
 
             # Special case:
-            # marble center is inside the wall.
-            elif distance_sq == 0 and wall_rect.collidepoint(
-                self.marble.x,
-                self.marble.y
+            # marble center is inside the wall
+            elif (
+                distance_sq == 0
+                and wall_rect.collidepoint(
+                    self.marble.x,
+                    self.marble.y
+                )
             ):
+
                 distances = {
                     "left": self.marble.x - wall_rect.left,
                     "right": wall_rect.right - self.marble.x,
                     "top": self.marble.y - wall_rect.top,
-                    "bottom": wall_rect.bottom - self.marble.y,
+                    "bottom": wall_rect.bottom - self.marble.y
                 }
 
-                side = min(distances, key=distances.get)
+                side = min(
+                    distances,
+                    key=distances.get
+                )
 
                 if side == "left":
                     nx, ny = -1, 0
-                    penetration = radius + distances["left"]
+                    penetration = (
+                        radius + distances["left"]
+                    )
 
                 elif side == "right":
                     nx, ny = 1, 0
-                    penetration = radius + distances["right"]
+                    penetration = (
+                        radius + distances["right"]
+                    )
 
                 elif side == "top":
                     nx, ny = 0, -1
-                    penetration = radius + distances["top"]
+                    penetration = (
+                        radius + distances["top"]
+                    )
 
                 else:
                     nx, ny = 0, 1
-                    penetration = radius + distances["bottom"]
+                    penetration = (
+                        radius + distances["bottom"]
+                    )
 
-                # Push marble outside the wall.
+                # Push marble outside wall
                 self.marble.x += nx * penetration
                 self.marble.y += ny * penetration
 
-                # Calculate velocity toward the wall.
                 velocity_into_wall = (
-                    self.marble.vx * nx
-                    + self.marble.vy * ny
+                    self.marble.vx * nx +
+                    self.marble.vy * ny
                 )
 
-                # Bounce only when moving into the wall.
+                # Bounce
                 if velocity_into_wall < 0:
+
                     restitution = 0.3
 
                     self.marble.vx -= (
@@ -250,7 +291,10 @@ class GameEngine:
         pygame.draw.circle(
             screen,
             GOAL_COLOR,
-            (self.goal_x, self.goal_y),
+            (
+                self.goal_x,
+                self.goal_y
+            ),
             self.goal_radius
         )
 
@@ -265,7 +309,7 @@ class GameEngine:
             self.marble.radius
         )
 
-        # Draw timer
+        # Timer
         elapsed = pygame.time.get_ticks() - self.start_ticks
 
         seconds_left = max(
@@ -279,12 +323,27 @@ class GameEngine:
             WHITE
         )
 
-        screen.blit(timer_text, (10, 10))
+        screen.blit(
+            timer_text,
+            (10, 10)
+        )
 
-        # Game Over screen
+        # Show difficulty
+        difficulty_text = self.font.render(
+            f"Difficulty: {self.difficulty.upper()}",
+            True,
+            WHITE
+        )
+
+        screen.blit(
+            difficulty_text,
+            (10, 45)
+        )
+
+        # Game Over Screen
         if self.game_over:
 
-            # Dark transparent overlay
+            # Dark overlay
             overlay = pygame.Surface(
                 (self.width, self.height)
             )
@@ -297,8 +356,9 @@ class GameEngine:
                 (0, 0)
             )
 
-            # Determine result
+            # Result
             if self.result == "solved":
+
                 title_text = "MAZE SOLVED!"
 
                 time_text = (
@@ -307,13 +367,12 @@ class GameEngine:
                 )
 
             else:
+
                 title_text = "TIME'S UP!"
 
-                time_text = (
-                    "The maze was not solved."
-                )
+                time_text = "The maze was not solved."
 
-            # Create text surfaces
+            # Text
             title_surface = self.font.render(
                 title_text,
                 True,
@@ -327,12 +386,12 @@ class GameEngine:
             )
 
             instruction_surface = self.font.render(
-                "Press any key to exit",
+                "Press any key for replay menu",
                 True,
                 WHITE
             )
 
-            # Draw title
+            # Title
             screen.blit(
                 title_surface,
                 title_surface.get_rect(
@@ -343,7 +402,7 @@ class GameEngine:
                 )
             )
 
-            # Draw result/time
+            # Time/result
             screen.blit(
                 time_surface,
                 time_surface.get_rect(
@@ -354,7 +413,7 @@ class GameEngine:
                 )
             )
 
-            # Draw instruction
+            # Instruction
             screen.blit(
                 instruction_surface,
                 instruction_surface.get_rect(
